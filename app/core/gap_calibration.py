@@ -99,3 +99,81 @@ def build_gap_model(
         rmse=float(np.sqrt(np.mean(squared_errors))),
         source=source,
     )
+
+import hashlib
+import logging
+from pathlib import Path
+
+from app.core.activity import extract_slope_speed_pairs, load_activity_gpx
+
+logger = logging.getLogger(__name__)
+
+
+def _file_hash(path: Path) -> str:
+    """Hash du contenu, pas du nom : un fichier renommé reste reconnu."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _read_activity_pairs(path: Path) -> list[tuple[float, float]] | None:
+    """Lit une activité et en extrait les couples (pente, vitesse). None si illisible."""
+    if path.suffix.lower() != ".gpx":
+        logger.info("Format non géré pour l'instant, ignoré : %s", path.name)
+        return None
+
+    try:
+        points = load_activity_gpx(str(path))
+    except (ValueError, Exception) as error:  # gpxpy peut lever plusieurs types d'erreurs
+        logger.warning("Activité illisible, ignorée : %s (%s)", path.name, error)
+        return None
+
+    return extract_slope_speed_pairs(points)
+
+def calibrate_gap_curve(activities_dir: str = "data/activities") -> GapModel:
+    """Outil de l'agent : calibre le GAP sur les activités locales, replie sur Minetti sinon."""
+    directory = Path(activities_dir)
+
+    if not directory.is_dir():
+        return _fallback_model(f"dossier introuvable : {activities_dir}")
+
+    seen_hashes: set[str] = set()
+    activity_pairs: list[list[tuple[float, float]]] = []
+    skipped = 0
+
+    for path in sorted(directory.iterdir()):
+        if not path.is_file():
+            continue
+
+        file_hash = _file_hash(path)
+        if file_hash in seen_hashes:
+            logger.info("Doublon ignoré : %s", path.name)
+            continue
+        seen_hashes.add(file_hash)
+
+        pairs = _read_activity_pairs(path)
+        if pairs is None:
+            skipped += 1
+            continue
+
+        activity_pairs.append(pairs)
+
+    if not activity_pairs:
+        return _fallback_model("aucune activité exploitable dans le dossier")
+
+    try:
+        return build_gap_model(activity_pairs, source=f"{len(activity_pairs)} activités locales")
+    except ValueError as error:
+        return _fallback_model(f"calibrage impossible ({error})")
+
+
+def _fallback_model(reason: str) -> GapModel:
+    """Repli théorique : aucune correction empirique, Minetti sert de référence directe."""
+    logger.info("Repli sur Minetti théorique : %s", reason)
+    return GapModel(
+        n_activities=0,
+        n_samples=0,
+        flat_speed_m_s=0.0,
+        empirical_factor={},
+        theoretical_factor={},
+        rmse=0.0,
+        source=f"théorique (Minetti) — {reason}",
+    )
