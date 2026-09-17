@@ -1,0 +1,20 @@
+{
+  "name": "Coureur d'exemple",
+  "weight_kg": 70.0,
+  "height_cm": 178.0,
+  "vo2max": 58.0,
+  "vma_kmh": 17.0,
+  "records": [
+    { "label": "10 km route",   "distance_m": 10000, "time_s": 2520  },
+    { "label": "semi-marathon", "distance_m": 21097, "time_s": 5580  },
+    { "label": "marathon",      "distance_m": 42195, "time_s": 12000 }
+  ],
+  "training": {
+    "weekly_distance_km": 65,
+    "weekly_elev_gain_m": 1500,
+    "longest_run_km": 38,
+    "longest_run_duration_s": 15300,
+    "max_elev_gain_single_run_m": 1800,
+    "experience": "intermédiaire"
+  }
+}
