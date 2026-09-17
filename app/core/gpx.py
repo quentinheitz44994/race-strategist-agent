@@ -19,9 +19,12 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def smooth_elevation(elevations: np.ndarray, window: int = 21, polyorder: int = 2) -> np.ndarray:
-    """Lisse la série d'altitudes pour retirer le bruit du GPS."""
+    """Lisse la série d'altitudes pour retirer le bruit du GPS.
+
+    Une fenêtre de 1 (ou inférieure à polyorder) désactive le lissage.
+    """
     n = len(elevations)
-    if n < 5:
+    if n < 5 or window <= 1:
         return elevations
     window = min(window, n if n % 2 == 1 else n - 1)
     if window % 2 == 0:
@@ -49,7 +52,12 @@ def compute_elevation_change(
     return gain, loss
 
 
-def load_route(source: str, name: str | None = None) -> RouteProfile:
+def load_route(
+    source: str,
+    name: str | None = None,
+    smooth_window: int = 5,
+    threshold_m: float = 0.5,
+) -> RouteProfile:
     """Lit un fichier GPX et renvoie un parcours prêt à être segmenté."""
     with open(source, "r", encoding="utf-8") as handle:
         gpx = gpxpy.parse(handle)
@@ -70,17 +78,22 @@ def load_route(source: str, name: str | None = None) -> RouteProfile:
     if len(lats) < 2:
         raise ValueError("Trace GPX vide ou sans altitude exploitable.")
 
-    elevations = smooth_elevation(np.array(raw_elevations, dtype=float))
+    elevations = smooth_elevation(np.array(raw_elevations, dtype=float), window=smooth_window)
 
     distances = [0.0]
     for i in range(1, len(lats)):
         step = haversine_m(lats[i - 1], lons[i - 1], lats[i], lons[i])
         distances.append(distances[-1] + step)
 
-    gain, loss = compute_elevation_change(elevations)
+    gain, loss = compute_elevation_change(elevations, threshold_m=threshold_m)
 
     points = [
-        TrackPoint(lat=lats[i], lon=lons[i], elevation_m=float(elevations[i]), distance_m=distances[i])
+        TrackPoint(
+            lat=lats[i],
+            lon=lons[i],
+            elevation_m=float(elevations[i]),
+            distance_m=distances[i],
+        )
         for i in range(len(lats))
     ]
 
