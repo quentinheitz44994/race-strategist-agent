@@ -1,11 +1,25 @@
 from typing import Literal, TypedDict
 
 from app.core.athlete import AthleteProfile
+from app.core.fueling import FuelingPlan
 from app.core.gap_calibration import GapModel
 from app.core.models import RouteProfile, Segment
+from app.core.pacing import PacingPlan
 from app.core.weather import WeatherForecast
 
-MAX_ITERATIONS = 8
+MAX_ITERATIONS = 4
+
+# Quel champ de l'état chaque outil remplit. Partagé par l'executor (pour ranger
+# les résultats) et le planner (pour son plan de secours sans LLM).
+TOOL_OUTPUT_FIELD = {
+    "load_route": "route",
+    "segment_route": "segments",
+    "load_athlete_profile": "athlete",
+    "calibrate_gap_curve": "gap_model",
+    "get_weather_forecast": "weather",
+    "compute_pacing_plan": "pacing",
+    "compute_fueling_plan": "fueling",
+}
 
 
 class ToolCall(TypedDict):
@@ -32,6 +46,8 @@ class AgentState(TypedDict, total=False):
     athlete: AthleteProfile | None
     gap_model: GapModel | None
     weather: WeatherForecast | None
+    pacing: PacingPlan | None
+    fueling: FuelingPlan | None
 
     # Pilotage de la boucle.
     pending_tool_calls: list[str]

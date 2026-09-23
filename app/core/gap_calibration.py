@@ -35,6 +35,21 @@ def _bin_label(slope_center: float) -> str:
     return f"{slope_center:.2f}"
 
 
+def effective_gap_factor(model: GapModel, slope: float) -> float:
+    """Facteur GAP à appliquer : empirique si l'athlète a un bin proche, théorique sinon.
+
+    C'est le point où le calibrage personnel (F4) entre réellement dans le calcul
+    d'allure ; sans bin exploitable à cette pente, on retombe sur Minetti.
+    """
+    if model.empirical_factor:
+        centers = {float(label): value for label, value in model.empirical_factor.items()}
+        nearest = min(centers, key=lambda center: abs(center - slope))
+        if abs(nearest - slope) <= 0.02:
+            return centers[nearest]
+
+    return gap_factor(slope)
+
+
 def aggregate_by_slope(pairs: list[tuple[float, float]]) -> list[BinStats]:
     """Regroupe les couples (pente, vitesse) de toutes les activités par tranche de pente."""
     if not pairs:

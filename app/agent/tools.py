@@ -4,9 +4,11 @@ from typing import Any, Callable
 
 from app.core.activity import load_activity_gpx  # noqa: F401  (réexporté pour usage direct si besoin)
 from app.core.athlete import AthleteProfile, load_athlete_profile
+from app.core.fueling import compute_fueling_plan
 from app.core.gap_calibration import GapModel, calibrate_gap_curve
 from app.core.gpx import load_route
 from app.core.models import RouteProfile, Segment
+from app.core.pacing import compute_pacing_plan
 from app.core.segmentation import segment_route
 from app.core.weather import WeatherForecast, get_weather_forecast
 
@@ -64,6 +66,23 @@ TOOLS: list[ToolSpec] = [
         description=(
             "Donne la météo attendue à une position et une date : prévision si la course "
             "est à moins de 14 jours, moyenne climatologique sur 5 ans sinon."
+        ),
+    ),
+    ToolSpec(
+        name="compute_pacing_plan",
+        func=compute_pacing_plan,
+        description=(
+            "Calcule l'allure cible, la vitesse ascensionnelle, le temps estimé et le temps "
+            "cumulé pour chaque segment, en tenant compte de la pente, de la météo et de la "
+            "dérive de fatigue. Nécessite les segments, le profil athlète, le modèle GAP et la météo."
+        ),
+    ),
+    ToolSpec(
+        name="compute_fueling_plan",
+        func=compute_fueling_plan,
+        description=(
+            "Calcule les apports horaires recommandés en glucides, liquide et sodium à partir "
+            "de la durée estimée de course et de la température attendue. Nécessite le plan d'allure."
         ),
     ),
 ]

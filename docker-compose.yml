@@ -12,6 +12,14 @@ services:
       timeout: 3s
       retries: 3
 
+  ui:
+    build: .
+    command: streamlit run app/ui/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+
   db:
     image: postgres:16
     environment:

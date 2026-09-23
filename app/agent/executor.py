@@ -1,6 +1,7 @@
+from datetime import date
 from typing import Any
 
-from app.agent.state import AgentState, ToolCall
+from app.agent.state import TOOL_OUTPUT_FIELD, AgentState, ToolCall
 from app.agent.tools import get_tool
 
 
@@ -37,19 +38,36 @@ def _resolve_arguments(tool_name: str, state: AgentState) -> dict[str, Any]:
         return {
             "lat": depart.lat,
             "lon": depart.lon,
-            "race_date": state["race_date"],
+            # L'état transporte la date en ISO (sérialisable) ; l'outil attend un objet date.
+            "race_date": date.fromisoformat(state["race_date"]),
+        }
+
+    if tool_name == "compute_pacing_plan":
+        for dependency in ("segments", "athlete", "gap_model", "weather"):
+            if state.get(dependency) is None:
+                raise ToolArgumentsMissing(f"compute_pacing_plan nécessite '{dependency}'.")
+        return {
+            "segments": state["segments"],
+            "athlete": state["athlete"],
+            "gap_model": state["gap_model"],
+            "weather": state["weather"],
+            "target_time_s": state.get("target_time_s"),
+        }
+
+    if tool_name == "compute_fueling_plan":
+        if state.get("pacing") is None:
+            raise ToolArgumentsMissing("compute_fueling_plan nécessite 'pacing' pour la durée.")
+        if state.get("weather") is None:
+            raise ToolArgumentsMissing("compute_fueling_plan nécessite 'weather' pour la température.")
+        return {
+            "duration_h": state["pacing"].total_time_s / 3600.0,
+            "temp_c": state["weather"].stats.temp_mean_c,
         }
 
     raise KeyError(f"Pas de règle de résolution d'arguments pour l'outil : {tool_name}")
 
 
-_STATE_FIELD_BY_TOOL = {
-    "load_route": "route",
-    "segment_route": "segments",
-    "load_athlete_profile": "athlete",
-    "calibrate_gap_curve": "gap_model",
-    "get_weather_forecast": "weather",
-}
+_STATE_FIELD_BY_TOOL = TOOL_OUTPUT_FIELD
 
 
 def run_tool_executor(state: AgentState) -> AgentState:

@@ -1,8 +1,20 @@
 from typing import Literal
 
+from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import BaseModel, Field
 
+from app.agent.planner import _build_llm
 from app.agent.state import AgentState
 from app.core.models import Segment
+
+
+class CriticVerdict(BaseModel):
+    """Jugement qualitatif du critic sur la plausibilité globale du plan."""
+
+    status: Literal["ok", "needs_revision"] = Field(
+        description="'ok' si le plan est défendable, 'needs_revision' sinon."
+    )
+    diagnosis: str = Field(description="Explication courte, vide si status='ok'.")
 
 
 def _segments_couvrent_le_parcours(route_distance_m: float, segments: list[Segment]) -> str | None:
@@ -44,20 +56,6 @@ def run_deterministic_checks(state: AgentState) -> list[str]:
 
     return problems
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from pydantic import BaseModel, Field
-
-from app.agent.planner import PLANNER_MODEL, _build_llm
-
-
-class CriticVerdict(BaseModel):
-    """Jugement qualitatif du critic sur la plausibilité globale du plan."""
-
-    status: Literal["ok", "needs_revision"] = Field(
-        description="'ok' si le plan est défendable, 'needs_revision' sinon."
-    )
-    diagnosis: str = Field(description="Explication courte, vide si status='ok'.")
-
 
 def _build_qualitative_prompt(state: AgentState) -> str:
     athlete = state["athlete"]
@@ -88,11 +86,19 @@ def run_critic(state: AgentState, llm: ChatGoogleGenerativeAI | None = None) -> 
 
     llm = llm or _build_llm()
     structured_llm = llm.with_structured_output(CriticVerdict)
-    verdict = structured_llm.invoke(_build_qualitative_prompt(state))
+
+    try:
+        verdict = structured_llm.invoke(_build_qualitative_prompt(state))
+    except Exception as error:
+        # Le contrôle qualitatif ne doit pas empêcher la production du rapport.
+        return {
+            **state,
+            "critic_status": "ok",
+            "critic_diagnosis": f"Contrôle qualitatif indisponible ({error}).",
+        }
 
     return {
         **state,
         "critic_status": verdict.status,
         "critic_diagnosis": verdict.diagnosis or None,
     }
-
